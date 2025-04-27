@@ -1,10 +1,12 @@
 import LSK from "#const/local_key.json" assert { type: "json" };
 import STRINGS from "#const/strings.json" assert { type: "json" };
 import type { TrimOptios } from "@lrc-maker/lrc-parser";
-import { createContext, useEffect, useMemo } from "react";
+import { createContext, useEffect, useMemo, useReducer, useRef } from "react";
 import { useLang } from "../hooks/useLang.js";
 import { type Action as PrefAction, type State as PrefState, usePref } from "../hooks/usePref.js";
 import { toastPubSub } from "./toast.js";
+import type { Language } from "../languages/index.js";
+import enUS from "../languages/en-US.json" assert { type: "json" };
 
 interface IAppContext {
     lang: Language;
@@ -29,75 +31,112 @@ export const enum ChangBits {
     // screenButton = 1 << Bits.screenButton,
     // themeColor = 1 << Bits.themeColor,
     prefState = 1 << Bits.prefState,
+    audioSrc = 1 << 3,
+    trimOptions = 1 << 4,
+    batchProcessor = 1 << 5,
 }
 
-export const appContext = createContext<IAppContext>(undefined, (prev, next) => {
-    let bits = 0;
+type StringOptions = {
+    spaceStart: number;
+    spaceEnd: number;
+    fixed: number;
+};
 
-    if (prev.lang !== next.lang) {
-        bits |= ChangBits.lang;
-    }
+export const appContext = createContext<{
+    prefState: PrefState;
+    prefDispatch: React.Dispatch<PrefAction>;
+    lang: Language;
+    audioSrc: string;
+    setAudioSrc: (path: string) => any;
+    trimOptions: StringOptions;
+    // 批量处理状态
+    batchProcessorState: {
+        audioFiles: File[];
+        lrcFiles: File[];
+        matches: any[];
+        processingIndex: number;
+    };
+    setBatchProcessorState: (state: any) => void;
+}>(
+    Object.create(null),
+);
 
-    // const changed = (prop: keyof IAppContext["prefState"]) => {
-    //     return prev.prefState[prop] !== next.prefState[prop];
-    // };
-
-    // if (changed("spaceStart") || changed("spaceEnd") || changed("fixed")) {
-    //     bits |= ChangBits.lrcFormat;
-    // }
-
-    // if (changed("builtInAudio")) {
-    //     bits |= ChangBits.builtInAudio;
-    // }
-    // if (changed("screenButton")) {
-    //     bits |= ChangBits.screenButton;
-    // }
-
-    // if (changed("themeColor")) {
-    //     bits |= ChangBits.themeColor;
-    // }
-
-    if (prev.prefState.builtInAudio !== next.prefState.builtInAudio) {
-        bits |= ChangBits.builtInAudio;
-    }
-
-    if (prev.prefState !== next.prefState) {
-        bits |= ChangBits.prefState;
-    }
-
-    return bits;
-});
+export const audioRef: React.RefObject<HTMLAudioElement> = {
+    current: null,
+};
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [prefState, prefDispatch] = usePref(() => localStorage.getItem(LSK.preferences) || STRINGS.emptyString);
+    const self = useRef(Symbol(AppProvider.name));
+
+    const [prefState, prefDispatch] = usePref(() => {
+        try {
+            const data = localStorage.getItem(LSK.preferences);
+            if (data) {
+                return data;
+            }
+        } catch (e) {}
+
+        return "";
+    });
+
+    const trimOptions = useMemo<StringOptions>(() => {
+        const { spaceStart, spaceEnd, fixed } = prefState;
+        return { spaceStart, spaceEnd, fixed };
+    }, [prefState.spaceStart, prefState.spaceEnd, prefState.fixed]);
 
     const [lang, setLang] = useLang();
 
-    useEffect(() => {
-        setLang(prefState.lang).catch((error: Error) => {
-            toastPubSub.pub({
-                type: "warning",
-                text: error.message,
-            });
-        });
-    }, [prefState.lang, setLang]);
+    const [audioSrc, setAudioSrc] = useReducer(
+        (_state: string, action: string) => action,
+        "",
+    );
+
+    // 添加批量处理状态
+    const [batchProcessorState, setBatchProcessorState] = useReducer(
+        (_state: any, action: any) => action,
+        {
+            audioFiles: [],
+            lrcFiles: [],
+            matches: [],
+            processingIndex: -1,
+        },
+    );
 
     useEffect(() => {
-        document.title = lang.app.fullname;
-        document.documentElement.lang = prefState.lang;
-    }, [lang, prefState, prefState.lang]);
+        try {
+            const data = localStorage.getItem(LSK.preferences);
+            if (data) {
+                const state = JSON.parse(data);
+                if (prefState.lang !== state.lang) {
+                    prefDispatch({
+                        type: "lang", 
+                        payload: state.lang,
+                    });
+                    setLang(state.lang).catch(console.error);
+                }
+            }
+        } catch (e) {}
+    }, [prefDispatch, prefState.lang, setLang]);
+
+    useEffect(() => {
+        if (lang && lang.app) {
+            document.title = lang.app.fullname;
+            document.documentElement.lang = prefState.lang;
+        }
+    }, [lang, prefState.lang]);
 
     const value = useMemo(() => {
         return {
             lang,
             prefState,
             prefDispatch,
-            trimOptions: {
-                trimStart: prefState.spaceStart >= 0,
-                trimEnd: prefState.spaceEnd >= 0,
-            },
+            trimOptions,
+            audioSrc,
+            setAudioSrc,
+            batchProcessorState,
+            setBatchProcessorState,
         };
-    }, [lang, prefDispatch, prefState]);
+    }, [lang, prefDispatch, prefState, trimOptions, audioSrc, setAudioSrc, batchProcessorState, setBatchProcessorState]);
 
     return <appContext.Provider value={value}>{children}</appContext.Provider>;
 };

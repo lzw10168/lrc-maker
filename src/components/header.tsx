@@ -2,7 +2,7 @@ import ROUTER from "#const/router.json" assert { type: "json" };
 import { useContext } from "react";
 import { prependHash } from "../utils/router.js";
 import { appContext, ChangBits } from "./app.context.js";
-import { CloudSVG, EditorSVG, HomeSVG, PreferencesSVG, SynchronizerSVG } from "./svg.js";
+import { BatchProcessorSVG, CloudSVG, EditorSVG, HomeSVG, PreferencesSVG, SynchronizerSVG } from "./svg.js";
 
 export const Header: React.FC = () => {
     const { lang } = useContext(appContext, ChangBits.lang);
@@ -29,6 +29,14 @@ export const Header: React.FC = () => {
                 </a>
                 <a id={ROUTER.gist} className="app-tab" title={lang.header.gist} href={prependHash(ROUTER.gist)}>
                     <CloudSVG />
+                </a>
+                <a
+                    id={ROUTER.batchProcessor}
+                    className="app-tab"
+                    title="批量处理"
+                    href={prependHash(ROUTER.batchProcessor)}
+                >
+                    <BatchProcessorSVG />
                 </a>
                 <a
                     id={ROUTER.preferences}

@@ -6,6 +6,7 @@ import { appContext, ChangBits } from "./app.context.js";
 import { LrcAudio } from "./audio.js";
 import { LoadAudio, nec } from "./loadaudio.js";
 import { toastPubSub } from "./toast.js";
+import { setCurrentAudioFileName } from "../utils/lrc-file-name.js";
 
 const accept = ["audio/*", ".ncm", ".qmcflac", ".qmc0", ".qmc1", ".qmc2", ".qmc3", "qmcogg"].join(", ");
 
@@ -173,6 +174,22 @@ export const Footer: React.FC = () => {
         [lang],
     );
 
+    // Listen for audio load events from other components
+    useEffect(() => {
+        const subscription = Symbol("Footer audio subscriber");
+        
+        // Subscribe to audio state changes
+        const unsubscribe = audioStatePubSub.sub(subscription, (data) => {
+            if (data.type === AudioActionType.loadAudio) {
+                // Update audio source when loadAudio event is triggered
+                setAudioSrc(data.payload);
+            }
+        });
+        
+        // Cleanup subscription on unmount
+        return unsubscribe;
+    }, []);
+
     return (
         <footer className="app-footer">
             <input id="audio-input" type="file" accept={accept} hidden={true} onChange={onAudioInputChange} />
@@ -195,12 +212,17 @@ export const Footer: React.FC = () => {
     );
 };
 
+// Export type for legacy compatibility
 type TsetAudioSrc = (src: string) => void;
 
+// Now only used internally in the Footer component
 const receiveFile = (file: File, setAudioSrc: TsetAudioSrc): void => {
     sessionStorage.removeItem(SSK.audioSrc);
 
     if (file) {
+        // Store the audio filename for LRC naming
+        setCurrentAudioFileName(file.name);
+        
         if (file.type.startsWith("audio/")) {
             setAudioSrc(URL.createObjectURL(file));
             return;

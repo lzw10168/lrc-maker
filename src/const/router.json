@@ -3,5 +3,6 @@
     "editor": "/editor/",
     "synchronizer": "/synchronizer/",
     "gist": "/gist/",
-    "preferences": "/preferences/"
+    "preferences": "/preferences/",
+    "batchProcessor": "/batch-processor/"
 }

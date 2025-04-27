@@ -35,6 +35,12 @@ const LazyPreferences = lazy(async () =>
     })
 );
 
+const LazyBatchProcessor = lazy(async () =>
+    import("./batch-processor.js").then(({ BatchProcessor }) => {
+        return { default: BatchProcessor };
+    })
+);
+
 export const Content: React.FC = () => {
     const self = useRef(Symbol(Content.name));
 
@@ -69,9 +75,18 @@ export const Content: React.FC = () => {
                         value: convertTimeToTag(data.payload, prefState.fixed, false),
                     },
                 });
+            } else if (data.type === AudioActionType.loadLyric) {
+                lrcDispatch({
+                    type: LrcActionType.parse,
+                    payload: { text: data.payload, options: trimOptions },
+                });
+                
+                if (location.hash.slice(1) !== ROUTER.editor) {
+                    location.hash = ROUTER.editor;
+                }
             }
         });
-    }, [lrcDispatch, prefState.fixed]);
+    }, [lrcDispatch, prefState.fixed, trimOptions]);
 
     useEffect(() => {
         function saveState(): void {
@@ -179,6 +194,10 @@ export const Content: React.FC = () => {
 
             case ROUTER.preferences: {
                 return <LazyPreferences />;
+            }
+
+            case ROUTER.batchProcessor: {
+                return <LazyBatchProcessor />;
             }
         }
 
